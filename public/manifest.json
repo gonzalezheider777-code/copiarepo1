@@ -1,0 +1,42 @@
+{
+  "name": "UniConnect - Red Social Universitaria",
+  "short_name": "UniConnect",
+  "description": "Plataforma social para estudiantes universitarios",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/placeholder.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "categories": ["social", "education"],
+  "shortcuts": [
+    {
+      "name": "Feed",
+      "url": "/",
+      "description": "Ver feed principal"
+    },
+    {
+      "name": "Mensajes",
+      "url": "/messages",
+      "description": "Ver mensajes"
+    },
+    {
+      "name": "Búsqueda",
+      "url": "/search",
+      "description": "Buscar usuarios y contenido"
+    }
+  ]
+}

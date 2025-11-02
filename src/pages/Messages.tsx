@@ -5,60 +5,28 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Smile, Image as ImageIcon, Paperclip } from "lucide-react";
+import { Send, Image as ImageIcon, ArrowLeft, MoreVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-
-interface Message {
-  id: number;
-  user: string;
-  avatar: string;
-  content: string;
-  timestamp: string;
-  isCurrentUser?: boolean;
-}
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useConversations, useMessages } from "@/hooks/useConversations";
+import { useAuth } from "@/hooks/useAuth";
+import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const Messages = () => {
+  const { user } = useAuth();
   const [inputMessage, setInputMessage] = useState("");
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 1,
-      user: "María García",
-      avatar: "/placeholder.svg",
-      content: "¡Hola a todos! ¿Alguien tiene apuntes de la clase de algoritmos?",
-      timestamp: "10:30 AM",
-    },
-    {
-      id: 2,
-      user: "Carlos Ruiz",
-      avatar: "/placeholder.svg",
-      content: "Sí, yo los tengo. Te los puedo pasar después de clase.",
-      timestamp: "10:32 AM",
-    },
-    {
-      id: 3,
-      user: "Ana López",
-      avatar: "/placeholder.svg",
-      content: "Recuerden que mañana es la entrega del proyecto de base de datos 📚",
-      timestamp: "10:35 AM",
-    },
-    {
-      id: 4,
-      user: "Tú",
-      avatar: "/placeholder.svg",
-      content: "Gracias por recordarlo Ana!",
-      timestamp: "10:36 AM",
-      isCurrentUser: true,
-    },
-    {
-      id: 5,
-      user: "Luis Martínez",
-      avatar: "/placeholder.svg",
-      content: "¿Alguien quiere formar equipo para el hackathon del próximo mes?",
-      timestamp: "10:40 AM",
-    },
-  ]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { conversations, isLoading: conversationsLoading } = useConversations();
+  const { messages, isLoading: messagesLoading, sendMessage, isSending, markAsRead } = useMessages(selectedConversationId);
+
+  const selectedConversation = conversations.find(c => c.id === selectedConversationId);
+  const otherParticipant = selectedConversation?.participants?.find(p => p.user_id !== user?.id);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -68,20 +36,53 @@ const Messages = () => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (!inputMessage.trim()) return;
+  useEffect(() => {
+    if (selectedConversationId && messages.length > 0) {
+      markAsRead();
+    }
+  }, [selectedConversationId, messages, markAsRead]);
 
-    const newMessage: Message = {
-      id: messages.length + 1,
-      user: "Tú",
-      avatar: "/placeholder.svg",
-      content: inputMessage,
-      timestamp: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-      isCurrentUser: true,
-    };
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() && !imageFile) return;
 
-    setMessages([...messages, newMessage]);
+    let imageUrl: string | undefined;
+
+    if (imageFile) {
+      try {
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
+        const { data, error } = await supabase.storage
+          .from('messages')
+          .upload(fileName, imageFile);
+
+        if (error) throw error;
+
+        const { data: urlData } = supabase.storage
+          .from('messages')
+          .getPublicUrl(fileName);
+
+        imageUrl = urlData.publicUrl;
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        toast.error('Error al subir la imagen');
+        return;
+      }
+    }
+
+    sendMessage({ content: inputMessage || '📷', imageUrl });
     setInputMessage("");
+    setImageFile(null);
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('La imagen debe ser menor a 5MB');
+        return;
+      }
+      setImageFile(file);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -91,112 +92,229 @@ const Messages = () => {
     }
   };
 
+  if (!selectedConversationId) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <TopBar />
+
+        <main className="flex-1 pb-16 pt-16">
+          <div className="max-w-4xl mx-auto w-full p-4">
+            <h1 className="text-2xl font-bold mb-6">Mensajes</h1>
+
+            {conversationsLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <Card key={i} className="p-4 animate-pulse">
+                    <div className="flex gap-3">
+                      <div className="w-12 h-12 bg-muted rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-muted rounded w-1/3" />
+                        <div className="h-3 bg-muted rounded w-2/3" />
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : conversations.length === 0 ? (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">No tienes conversaciones aún</p>
+                <p className="text-sm text-muted-foreground mt-2">Busca usuarios y envíales un mensaje</p>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {conversations.map((conv) => {
+                  const otherUser = conv.participants?.find(p => p.user_id !== user?.id);
+                  return (
+                    <Card
+                      key={conv.id}
+                      className="p-4 cursor-pointer hover:bg-accent transition-colors"
+                      onClick={() => setSelectedConversationId(conv.id)}
+                    >
+                      <div className="flex gap-3">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src={otherUser?.user?.avatar_url} />
+                          <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white">
+                            {otherUser?.user?.full_name?.[0] || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-semibold truncate">{otherUser?.user?.full_name}</p>
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(conv.last_message_at), 'HH:mm')}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm text-muted-foreground truncate">
+                              {conv.last_message_preview}
+                            </p>
+                            {conv.unread_count! > 0 && (
+                              <Badge className="bg-primary text-white">
+                                {conv.unread_count}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </main>
+
+        <BottomNav />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <TopBar />
       
       <main className="flex-1 flex flex-col pb-16 pt-16">
         <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full">
-          {/* Group Header */}
           <Card className="border-x-0 border-t-0 rounded-none bg-card/95 backdrop-blur-md sticky top-16 z-30 flex-shrink-0">
             <div className="p-3 border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary via-primary to-accent flex items-center justify-center shadow-lg">
-                    <span className="text-white font-bold text-lg">UC</span>
-                  </div>
-                  <Badge className="absolute -top-1 -right-1 bg-accent text-white border-2 border-card px-1.5 py-0 text-xs">
-                    1.2K
-                  </Badge>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSelectedConversationId(null)}
+                  className="h-10 w-10"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={otherParticipant?.user?.avatar_url} />
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white">
+                    {otherParticipant?.user?.full_name?.[0] || 'U'}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="flex-1">
-                  <h2 className="font-bold text-lg text-foreground">UniConnect</h2>
-                  <p className="text-sm text-muted-foreground">1,234 miembros · 156 en línea</p>
+                  <h2 className="font-bold text-foreground">{otherParticipant?.user?.full_name}</h2>
+                  <p className="text-xs text-muted-foreground">@{otherParticipant?.user?.username}</p>
                 </div>
+                <Button variant="ghost" size="icon" className="h-10 w-10">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
               </div>
             </div>
           </Card>
 
-          {/* Messages Container */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-3 ${message.isCurrentUser ? 'flex-row-reverse' : ''}`}
-              >
-                {!message.isCurrentUser && (
-                  <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                    <AvatarImage src={message.avatar} />
-                    <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-sm">
-                      {message.user.split(' ').map(n => n[0]).join('')}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-                
-                <div className={`flex-1 max-w-[70%] ${message.isCurrentUser ? 'flex flex-col items-end' : ''}`}>
-                  {!message.isCurrentUser && (
-                    <p className="text-sm font-semibold text-foreground mb-1">{message.user}</p>
-                  )}
-                  <div
-                    className={`rounded-2xl px-4 py-2.5 ${
-                      message.isCurrentUser
-                        ? 'bg-primary text-primary-foreground rounded-br-sm'
-                        : 'bg-card border border-border rounded-bl-sm'
-                    }`}
-                  >
-                    <p className="text-sm leading-relaxed">{message.content}</p>
+          <ScrollArea className="flex-1 p-3">
+            {messagesLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex gap-3 animate-pulse">
+                    <div className="w-10 h-10 bg-muted rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-muted rounded w-1/3" />
+                      <div className="h-16 bg-muted rounded" />
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1 px-1">{message.timestamp}</p>
-                </div>
+                ))}
               </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
+            ) : (
+              <div className="space-y-3">
+                {messages.map((message) => {
+                  const isCurrentUser = message.sender_id === user?.id;
+                  return (
+                    <div
+                      key={message.id}
+                      className={`flex gap-3 ${isCurrentUser ? 'flex-row-reverse' : ''}`}
+                    >
+                      {!isCurrentUser && (
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={message.sender?.avatar_url} />
+                          <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-sm">
+                            {message.sender?.full_name?.[0] || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
 
-          {/* Input Area */}
+                      <div className={`flex-1 max-w-[70%] ${isCurrentUser ? 'flex flex-col items-end' : ''}`}>
+                        <div
+                          className={`rounded-2xl px-4 py-2.5 ${
+                            isCurrentUser
+                              ? 'bg-primary text-primary-foreground rounded-br-sm'
+                              : 'bg-card border border-border rounded-bl-sm'
+                          }`}
+                        >
+                          {message.image_url && (
+                            <img
+                              src={message.image_url}
+                              alt="Message attachment"
+                              className="rounded-lg max-w-full mb-2"
+                            />
+                          )}
+                          <p className="text-sm leading-relaxed">{message.content}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 px-1">
+                          {format(new Date(message.created_at), 'HH:mm')}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </ScrollArea>
+
           <Card className="border-x-0 border-b-0 rounded-none bg-card/95 backdrop-blur-md flex-shrink-0">
             <div className="p-3 border-t border-border">
-              <div className="flex items-end gap-2">
-                <div className="flex gap-1">
+              {imageFile && (
+                <div className="mb-2 p-2 bg-secondary rounded-lg flex items-center gap-2">
+                  <img
+                    src={URL.createObjectURL(imageFile)}
+                    alt="Preview"
+                    className="w-16 h-16 object-cover rounded"
+                  />
+                  <span className="text-sm flex-1">{imageFile.name}</span>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                    size="sm"
+                    onClick={() => setImageFile(null)}
                   >
-                    <Paperclip className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                  >
-                    <ImageIcon className="h-5 w-5" />
+                    Eliminar
                   </Button>
                 </div>
-                
-                <div className="flex-1 relative">
+              )}
+              <div className="flex items-end gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="h-9 w-9 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                >
+                  <ImageIcon className="h-5 w-5" />
+                </Button>
+
+                <div className="flex-1">
                   <Input
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Escribe un mensaje..."
-                    className="pr-12 py-6 rounded-full border-border bg-secondary/50 focus:bg-background transition-colors"
+                    className="rounded-full border-border bg-secondary/50 focus:bg-background transition-colors"
                   />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full"
-                  >
-                    <Smile className="h-5 w-5" />
-                  </Button>
                 </div>
-                
+
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!inputMessage.trim()}
-                  className="h-11 w-11 rounded-full bg-gradient-to-br from-primary to-accent hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={(!inputMessage.trim() && !imageFile) || isSending}
+                  className="h-9 w-9 rounded-full bg-gradient-to-br from-primary to-accent hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Send className="h-5 w-5" />
+                  <Send className="h-4 w-4" />
                 </Button>
               </div>
             </div>
