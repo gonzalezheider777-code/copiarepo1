@@ -1,236 +1,276 @@
-import { useState } from "react";
-import { Heart, MoreHorizontal, Send } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Heart, Send, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface Comment {
   id: string;
-  author: {
-    name: string;
-    avatar: string;
-  };
   content: string;
-  likes: number;
-  hasLiked: boolean;
-  timeAgo: string;
-  timestamp: number;
-  replies?: Comment[];
+  user_id: string;
+  post_id: string;
+  parent_id?: string;
+  created_at: string;
+  profiles: {
+    username: string;
+    avatar_url?: string;
+  };
+  likes_count?: number;
+  user_liked?: boolean;
 }
 
 interface CommentsSectionProps {
   postId: string;
-  initialComments?: Comment[];
+  initialComments?: any[];
 }
 
-type SortType = "relevant" | "recent" | "all";
-
-export const CommentsSection = ({ postId, initialComments = [] }: CommentsSectionProps) => {
-  const [comments, setComments] = useState<Comment[]>(initialComments);
+export const CommentsSection = ({ postId }: CommentsSectionProps) => {
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
-  const [sortType, setSortType] = useState<SortType>("relevant");
+  const [loading, setLoading] = useState(true);
+  const [posting, setPosting] = useState(false);
+  const { user } = useAuth();
   const { toast } = useToast();
 
-  // Ordenar comentarios según el tipo seleccionado
-  const sortedComments = [...comments].sort((a, b) => {
-    switch (sortType) {
-      case "relevant":
-        return b.likes - a.likes;
-      case "recent":
-        return b.timestamp - a.timestamp;
-      case "all":
-      default:
-        return a.timestamp - b.timestamp;
-    }
-  });
+  useEffect(() => {
+    loadComments();
 
-  const handleLikeComment = (commentId: string) => {
-    setComments(comments.map(comment => {
-      if (comment.id === commentId) {
-        return {
-          ...comment,
-          likes: comment.hasLiked ? comment.likes - 1 : comment.likes + 1,
-          hasLiked: !comment.hasLiked,
-        };
-      }
-      return comment;
-    }));
-  };
+    const channel = supabase
+      .channel(`comments-${postId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "comments",
+          filter: `post_id=eq.${postId}`,
+        },
+        () => {
+          loadComments();
+        }
+      )
+      .subscribe();
 
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
-
-    const comment: Comment = {
-      id: Date.now().toString(),
-      author: {
-        name: "Tú",
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=You",
-      },
-      content: newComment,
-      likes: 0,
-      hasLiked: false,
-      timeAgo: "Ahora",
-      timestamp: Date.now(),
+    return () => {
+      supabase.removeChannel(channel);
     };
+  }, [postId]);
 
-    setComments([comment, ...comments]);
-    setNewComment("");
-    toast({
-      title: "Comentario publicado",
-      description: "Tu comentario ha sido añadido",
-    });
+  const loadComments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("comments")
+        .select(`
+          *,
+          profiles:user_id (
+            username,
+            avatar_url
+          )
+        `)
+        .eq("post_id", postId)
+        .is("parent_id", null)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      const commentsWithLikes = await Promise.all(
+        (data || []).map(async (comment) => {
+          const [likesResult, userLikeResult] = await Promise.all([
+            supabase
+              .from("reactions")
+              .select("id", { count: "exact" })
+              .eq("comment_id", comment.id),
+            user
+              ? supabase
+                  .from("reactions")
+                  .select("id")
+                  .eq("comment_id", comment.id)
+                  .eq("user_id", user.id)
+                  .maybeSingle()
+              : Promise.resolve({ data: null }),
+          ]);
+
+          return {
+            ...comment,
+            likes_count: likesResult.count || 0,
+            user_liked: !!userLikeResult.data,
+          };
+        })
+      );
+
+      setComments(commentsWithLikes);
+    } catch (error) {
+      console.error("Error loading comments:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteComment = (commentId: string) => {
-    setComments(comments.filter(c => c.id !== commentId));
-    toast({
-      title: "Comentario eliminado",
-      description: "El comentario ha sido eliminado",
-    });
+  const handleSubmitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim() || !user) return;
+
+    setPosting(true);
+    try {
+      const { error } = await supabase.from("comments").insert({
+        post_id: postId,
+        user_id: user.id,
+        content: newComment.trim(),
+      });
+
+      if (error) throw error;
+
+      setNewComment("");
+      toast({
+        title: "Comentario publicado",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "No se pudo publicar el comentario",
+        variant: "destructive",
+      });
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const toggleLike = async (commentId: string) => {
+    if (!user) return;
+
+    try {
+      const comment = comments.find((c) => c.id === commentId);
+      if (!comment) return;
+
+      if (comment.user_liked) {
+        await supabase
+          .from("reactions")
+          .delete()
+          .eq("comment_id", commentId)
+          .eq("user_id", user.id);
+
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === commentId
+              ? {
+                  ...c,
+                  likes_count: (c.likes_count || 1) - 1,
+                  user_liked: false,
+                }
+              : c
+          )
+        );
+      } else {
+        await supabase.from("reactions").insert({
+          comment_id: commentId,
+          user_id: user.id,
+          reaction_type: "like",
+        });
+
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === commentId
+              ? {
+                  ...c,
+                  likes_count: (c.likes_count || 0) + 1,
+                  user_liked: true,
+                }
+              : c
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error toggling like:", error);
+    }
   };
 
   return (
-    <div className="space-y-4 mt-4 pt-4 border-t border-border">
-      {/* Campo para nuevo comentario */}
-      <div className="flex gap-3">
-        <Avatar className="h-10 w-10 flex-shrink-0">
-          <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=You" alt="Tú" />
-          <AvatarFallback className="bg-primary/10 text-primary">Tú</AvatarFallback>
+    <div className="mt-6 pt-6 border-t border-border space-y-5">
+      <form onSubmit={handleSubmitComment} className="flex gap-3">
+        <Avatar className="h-9 w-9 flex-shrink-0">
+          <AvatarImage src={user?.user_metadata?.avatar_url} />
+          <AvatarFallback className="bg-primary/10 text-primary text-sm">
+            {user?.email?.slice(0, 2).toUpperCase()}
+          </AvatarFallback>
         </Avatar>
-        <div className="flex-1 space-y-2">
+        <div className="flex-1 flex gap-2">
           <Textarea
-            placeholder="Escribe un comentario..."
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
-            className="min-h-[80px] resize-none"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleAddComment();
-              }
-            }}
+            placeholder="Escribe un comentario..."
+            className="min-h-[44px] max-h-32 resize-none"
+            disabled={posting}
           />
-          <div className="flex justify-end">
-            <Button
-              onClick={handleAddComment}
-              disabled={!newComment.trim()}
-              size="sm"
-              className="gap-2"
-            >
+          <Button
+            type="submit"
+            size="icon"
+            disabled={!newComment.trim() || posting}
+            className="h-11 w-11 flex-shrink-0"
+          >
+            {posting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
               <Send className="h-4 w-4" />
-              Comentar
-            </Button>
-          </div>
+            )}
+          </Button>
         </div>
-      </div>
+      </form>
 
-      {/* Lista de comentarios con selector de ordenamiento */}
-      {sortedComments.length > 0 && (
-        <div className="space-y-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-auto py-1 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
-              >
-                {sortType === "relevant" && "Más pertinentes"}
-                {sortType === "recent" && "Más recientes"}
-                {sortType === "all" && "Todos los comentarios"}
-                <MoreHorizontal className="h-3 w-3 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => setSortType("relevant")}>
-                <div className="flex flex-col">
-                  <span className="font-medium">Más pertinentes</span>
-                  <span className="text-xs text-muted-foreground">Los comentarios más valorados primero</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSortType("recent")}>
-                <div className="flex flex-col">
-                  <span className="font-medium">Más recientes</span>
-                  <span className="text-xs text-muted-foreground">Los comentarios más nuevos primero</span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSortType("all")}>
-                <div className="flex flex-col">
-                  <span className="font-medium">Todos los comentarios</span>
-                  <span className="text-xs text-muted-foreground">Ordenados cronológicamente</span>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {sortedComments.map((comment) => (
-            <div key={comment.id} className="flex gap-3 group">
-              <Avatar className="h-10 w-10 flex-shrink-0">
-                <AvatarImage src={comment.author.avatar} alt={comment.author.name} />
-                <AvatarFallback className="bg-primary/10 text-primary">
-                  {comment.author.name[0]}
+      <div className="space-y-4">
+        {loading ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : comments.length > 0 ? (
+          comments.map((comment) => (
+            <div key={comment.id} className="flex gap-3">
+              <Avatar className="h-9 w-9 flex-shrink-0">
+                <AvatarImage src={comment.profiles.avatar_url} />
+                <AvatarFallback className="bg-muted text-foreground text-sm">
+                  {comment.profiles.username.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1 space-y-1">
+              <div className="flex-1 min-w-0">
                 <div className="bg-muted/50 rounded-2xl px-4 py-2.5">
-                  <div className="font-semibold text-sm mb-1">{comment.author.name}</div>
-                  <p className="text-sm text-foreground">{comment.content}</p>
+                  <p className="font-semibold text-sm text-foreground mb-1">
+                    {comment.profiles.username}
+                  </p>
+                  <p className="text-sm text-foreground/90 leading-relaxed break-words">
+                    {comment.content}
+                  </p>
                 </div>
-                <div className="flex items-center gap-4 px-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={`h-auto py-1 px-2 text-xs font-semibold gap-1 ${
-                      comment.hasLiked ? "text-primary" : "text-muted-foreground"
+                <div className="flex items-center gap-4 mt-1.5 px-2">
+                  <button
+                    onClick={() => toggleLike(comment.id)}
+                    className={`text-xs font-medium transition-colors ${
+                      comment.user_liked
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-primary"
                     }`}
-                    onClick={() => handleLikeComment(comment.id)}
                   >
-                    <Heart className={`h-3 w-3 ${comment.hasLiked ? "fill-current" : ""}`} />
-                    {comment.likes > 0 && <span>{comment.likes}</span>}
-                    Me gusta
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto py-1 px-2 text-xs font-semibold text-muted-foreground"
-                  >
-                    Responder
-                  </Button>
-                  <span className="text-xs text-muted-foreground">{comment.timeAgo}</span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-auto py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreHorizontal className="h-3 w-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleDeleteComment(comment.id)}>
-                        Eliminar comentario
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>Reportar</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    Me gusta {comment.likes_count ? `· ${comment.likes_count}` : ""}
+                  </button>
+                  <span className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(comment.created_at), {
+                      addSuffix: true,
+                      locale: es,
+                    })}
+                  </span>
                 </div>
               </div>
             </div>
-          ))}
-        </div>
-      )}
-
-      {sortedComments.length === 0 && (
-        <div className="text-center py-8 text-muted-foreground text-sm">
-          Sé el primero en comentar
-        </div>
-      )}
+          ))
+        ) : (
+          <p className="text-center text-sm text-muted-foreground py-4">
+            No hay comentarios aún. ¡Sé el primero en comentar!
+          </p>
+        )}
+      </div>
     </div>
   );
 };

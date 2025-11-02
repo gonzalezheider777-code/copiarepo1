@@ -20,6 +20,7 @@ export const CreateIdeaForm = () => {
   const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video") => {
     const file = e.target.files?.[0];
     if (file) {
+      setMediaFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setMediaPreview(reader.result as string);
