@@ -23,7 +23,7 @@ const Search = () => {
   }>({});
   const [showFilters, setShowFilters] = useState(false);
 
-  const { users, posts, trendingHashtags, suggestedUsers, isLoading } = useSearch(searchQuery, filters);
+  const { users, posts, ideas, projects, trendingHashtags, suggestedUsers, isLoading } = useSearch(searchQuery, filters);
 
 
   return (
@@ -90,22 +90,30 @@ const Search = () => {
         </div>
 
         <Tabs defaultValue={searchQuery ? "posts" : "trending"} className="w-full px-4 md:px-0">
-          <TabsList className="w-full grid grid-cols-4 mb-6 bg-card border border-border h-12">
+          <TabsList className="w-full grid grid-cols-6 mb-6 bg-card border border-border h-12">
             <TabsTrigger value="trending" className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/10 data-[state=active]:to-accent/10">
               <Hash className="w-4 h-4" />
-              Trending
+              <span className="hidden md:inline">Trending</span>
             </TabsTrigger>
             <TabsTrigger value="people" className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/10 data-[state=active]:to-accent/10">
               <Users className="w-4 h-4" />
-              Personas
+              <span className="hidden md:inline">Personas</span>
+            </TabsTrigger>
+            <TabsTrigger value="ideas" className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/10 data-[state=active]:to-accent/10">
+              <FileText className="w-4 h-4" />
+              <span className="hidden md:inline">Ideas</span>
+            </TabsTrigger>
+            <TabsTrigger value="projects" className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/10 data-[state=active]:to-accent/10">
+              <FileText className="w-4 h-4" />
+              <span className="hidden md:inline">Proyectos</span>
             </TabsTrigger>
             <TabsTrigger value="posts" className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/10 data-[state=active]:to-accent/10">
               <FileText className="w-4 h-4" />
-              Posts
+              <span className="hidden md:inline">Posts</span>
             </TabsTrigger>
             <TabsTrigger value="suggested" className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/10 data-[state=active]:to-accent/10">
               <TrendingUp className="w-4 h-4" />
-              Sugeridos
+              <span className="hidden md:inline">Sugeridos</span>
             </TabsTrigger>
           </TabsList>
 
@@ -235,6 +243,108 @@ const Search = () => {
                   comments={post.comments?.[0]?.count || 0}
                   timeAgo={post.created_at}
                   image={post.image_url}
+                />
+              ))
+            )}
+          </TabsContent>
+
+          <TabsContent value="ideas" className="space-y-4">
+            {isLoading ? (
+              <div className="space-y-4">
+                {[1, 2].map(i => (
+                  <Card key={i} className="p-4 animate-pulse">
+                    <div className="space-y-3">
+                      <div className="flex gap-3">
+                        <div className="w-10 h-10 bg-muted rounded-full" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 bg-muted rounded w-1/4" />
+                          <div className="h-3 bg-muted rounded w-1/3" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-4 bg-muted rounded" />
+                        <div className="h-4 bg-muted rounded w-5/6" />
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : ideas.length === 0 && searchQuery ? (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">No se encontraron ideas</p>
+              </Card>
+            ) : ideas.length === 0 ? (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">Escribe algo en el buscador para encontrar ideas</p>
+              </Card>
+            ) : (
+              ideas.map((idea: any) => (
+                <ProjectCard
+                  key={idea.id}
+                  author={{
+                    name: idea.author.full_name,
+                    role: `${idea.author.career || ''} • ${idea.author.university || ''}`,
+                    avatar: idea.author.avatar_url || '/placeholder.svg',
+                  }}
+                  title={idea.title || 'Sin título'}
+                  description={idea.content}
+                  category={idea.category || 'General'}
+                  type="idea"
+                  likes={idea.reactions?.[0]?.count || 0}
+                  comments={idea.comments?.[0]?.count || 0}
+                  timeAgo={idea.created_at}
+                  image={idea.image_url}
+                />
+              ))
+            )}
+          </TabsContent>
+
+          <TabsContent value="projects" className="space-y-4">
+            {isLoading ? (
+              <div className="space-y-4">
+                {[1, 2].map(i => (
+                  <Card key={i} className="p-4 animate-pulse">
+                    <div className="space-y-3">
+                      <div className="flex gap-3">
+                        <div className="w-10 h-10 bg-muted rounded-full" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 bg-muted rounded w-1/4" />
+                          <div className="h-3 bg-muted rounded w-1/3" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-4 bg-muted rounded" />
+                        <div className="h-4 bg-muted rounded w-5/6" />
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : projects.length === 0 && searchQuery ? (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">No se encontraron proyectos</p>
+              </Card>
+            ) : projects.length === 0 ? (
+              <Card className="p-8 text-center">
+                <p className="text-muted-foreground">Escribe algo en el buscador para encontrar proyectos</p>
+              </Card>
+            ) : (
+              projects.map((project: any) => (
+                <ProjectCard
+                  key={project.id}
+                  author={{
+                    name: project.author.full_name,
+                    role: `${project.author.career || ''} • ${project.author.university || ''}`,
+                    avatar: project.author.avatar_url || '/placeholder.svg',
+                  }}
+                  title={project.title || 'Sin título'}
+                  description={project.content}
+                  category={project.category || 'General'}
+                  type="proyecto"
+                  likes={project.reactions?.[0]?.count || 0}
+                  comments={project.comments?.[0]?.count || 0}
+                  timeAgo={project.created_at}
+                  image={project.image_url}
                 />
               ))
             )}

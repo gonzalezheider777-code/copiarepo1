@@ -36,9 +36,11 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
   const [participants, setParticipants] = useState<any[]>([]);
   const [isJoined, setIsJoined] = useState(post.user_joined || false);
   const [participantsCount, setParticipantsCount] = useState(post.participants_count || 0);
+  const [isReposted, setIsReposted] = useState(post.user_reposted || false);
+  const [repostCount, setRepostCount] = useState(post.repost_count || 0);
   const { toast } = useToast();
   const { user } = useAuth();
-  const { joinIdea, leaveIdea, getIdeaParticipants } = usePosts();
+  const { joinIdea, leaveIdea, getIdeaParticipants, repostPost } = usePosts();
 
   const isOwnPost = user?.id === post.user_id;
 
@@ -102,13 +104,10 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
     locale: es,
   });
 
-  const handleShare = () => {
-    const url = `${window.location.origin}/post/${post.id}`;
-    navigator.clipboard.writeText(url);
-    toast({
-      title: "Enlace copiado",
-      description: "El enlace de la publicación se copió al portapapeles",
-    });
+  const handleShare = async () => {
+    const { isReposted: newRepostState } = await repostPost(post.id);
+    setIsReposted(newRepostState);
+    setRepostCount(prev => newRepostState ? prev + 1 : prev - 1);
   };
 
   const loadReactions = async () => {
@@ -401,10 +400,15 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
           <Button
             variant="ghost"
             size="sm"
-            className="flex-1 gap-2 hover:bg-primary/5 hover:text-primary transition-colors"
+            className={`flex-1 gap-2 transition-colors ${
+              isReposted
+                ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-950'
+                : 'hover:bg-primary/5 hover:text-primary'
+            }`}
             onClick={handleShare}
           >
-            <Share2 className="h-4 w-4" />
+            <Share2 className={`h-4 w-4 ${isReposted ? 'fill-current' : ''}`} />
+            {repostCount > 0 && <span className="text-xs">{repostCount}</span>}
           </Button>
           <Button
             variant="ghost"

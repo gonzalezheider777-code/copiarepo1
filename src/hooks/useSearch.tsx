@@ -78,6 +78,69 @@ export function useSearch(query: string, filters?: SearchFilters) {
     enabled: query.length > 0,
   });
 
+  const { data: ideas, isLoading: ideasLoading } = useQuery({
+    queryKey: ['search-ideas', query],
+    queryFn: async () => {
+      if (!query.trim()) return [];
+
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey(
+            id,
+            username,
+            full_name,
+            avatar_url,
+            university,
+            career
+          ),
+          reactions:reactions(count),
+          comments:comments(count),
+          idea_participants(count)
+        `)
+        .eq('post_type', 'idea')
+        .ilike('content', `%${query}%`)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: query.length > 0,
+  });
+
+  const { data: projects, isLoading: projectsLoading } = useQuery({
+    queryKey: ['search-projects', query],
+    queryFn: async () => {
+      if (!query.trim()) return [];
+
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles!posts_author_id_fkey(
+            id,
+            username,
+            full_name,
+            avatar_url,
+            university,
+            career
+          ),
+          reactions:reactions(count),
+          comments:comments(count)
+        `)
+        .eq('post_type', 'proyecto')
+        .ilike('content', `%${query}%`)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: query.length > 0,
+  });
+
   const { data: trendingHashtags } = useQuery({
     queryKey: ['trending-hashtags'],
     queryFn: async () => {
@@ -109,8 +172,10 @@ export function useSearch(query: string, filters?: SearchFilters) {
   return {
     users: users || [],
     posts: posts || [],
+    ideas: ideas || [],
+    projects: projects || [],
     trendingHashtags: trendingHashtags || [],
     suggestedUsers: suggestedUsers || [],
-    isLoading: usersLoading || postsLoading,
+    isLoading: usersLoading || postsLoading || ideasLoading || projectsLoading,
   };
 }

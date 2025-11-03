@@ -30,6 +30,8 @@ export interface Post {
   is_saved?: boolean;
   participants_count?: number;
   user_joined?: boolean;
+  repost_count?: number;
+  user_reposted?: boolean;
 }
 
 export const useFeed = (filterType: string = "all", limit: number = 20) => {
@@ -82,7 +84,7 @@ export const useFeed = (filterType: string = "all", limit: number = 20) => {
 
       const postsWithCounts = await Promise.all(
         (data || []).map(async (post) => {
-          const [reactionsResult, commentsResult, userReactionResult, savedResult, participantsResult, userJoinedResult] = await Promise.all([
+          const [reactionsResult, commentsResult, userReactionResult, savedResult, participantsResult, userJoinedResult, repostsResult, userRepostedResult] = await Promise.all([
             supabase
               .from("reactions")
               .select("id", { count: "exact" })
@@ -116,7 +118,17 @@ export const useFeed = (filterType: string = "all", limit: number = 20) => {
                   .eq("post_id", post.id)
                   .eq("user_id", user.id)
                   .maybeSingle()
-              : Promise.resolve({ data: null })
+              : Promise.resolve({ data: null }),
+            supabase
+              .from("reposts")
+              .select("id", { count: "exact" })
+              .eq("post_id", post.id),
+            supabase
+              .from("reposts")
+              .select("id")
+              .eq("post_id", post.id)
+              .eq("user_id", user.id)
+              .maybeSingle()
           ]);
 
           return {
@@ -126,7 +138,9 @@ export const useFeed = (filterType: string = "all", limit: number = 20) => {
             user_reaction: userReactionResult.data?.reaction_type,
             is_saved: !!savedResult.data,
             participants_count: participantsResult.count || 0,
-            user_joined: !!userJoinedResult.data
+            user_joined: !!userJoinedResult.data,
+            repost_count: repostsResult.count || 0,
+            user_reposted: !!userRepostedResult.data
           };
         })
       );

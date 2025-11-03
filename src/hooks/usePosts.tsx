@@ -314,6 +314,56 @@ export const usePosts = () => {
     }
   };
 
+  const repostPost = async (postId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuario no autenticado");
+
+      const { data: existingRepost } = await supabase
+        .from("reposts")
+        .select("id")
+        .eq("post_id", postId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (existingRepost) {
+        const { error } = await supabase
+          .from("reposts")
+          .delete()
+          .eq("id", existingRepost.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Repost eliminado",
+          description: "Has eliminado tu repost de esta publicación",
+        });
+
+        return { error: null, isReposted: false };
+      } else {
+        const { error } = await supabase
+          .from("reposts")
+          .insert({ post_id: postId, user_id: user.id });
+
+        if (error) throw error;
+
+        toast({
+          title: "¡Compartido!",
+          description: "Has compartido esta publicación en tu perfil",
+        });
+
+        return { error: null, isReposted: true };
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      return { error, isReposted: false };
+    }
+  };
+
   return {
     loading,
     createPost,
@@ -325,5 +375,6 @@ export const usePosts = () => {
     joinIdea,
     leaveIdea,
     getIdeaParticipants,
+    repostPost,
   };
 };
