@@ -14,7 +14,11 @@ type FilterType = "all" | "proyecto" | "equipo" | "idea" | "evento" | "text";
 
 const Index = () => {
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
-  const { posts, loading, hasMore, loadMore, addReaction, toggleSave } = useFeed(activeFilter);
+  const { posts, loading, hasMore, loadMore, addReaction, toggleSave, refreshFeed } = useFeed(activeFilter);
+
+  const handleDeletePost = () => {
+    refreshFeed();
+  };
   useEffect(() => {
     const handleScroll = () => {
       if (
@@ -44,7 +48,7 @@ const Index = () => {
       <main className="pt-4">
         <QuickActions activeFilter={activeFilter} onFilterChange={setActiveFilter} />
 
-        <CreatePostPrompt />
+        <CreatePostPrompt onPostCreated={refreshFeed} />
 
         <div className="mb-6 bg-card border-y border-border">
           <div className="p-4">
@@ -110,6 +114,7 @@ const Index = () => {
                   post={post}
                   onReaction={addReaction}
                   onSave={toggleSave}
+                  onDelete={handleDeletePost}
                 />
               ))}
               {loading && hasMore && (
