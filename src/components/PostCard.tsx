@@ -43,6 +43,19 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
   const isOwnPost = user?.id === post.user_id;
 
   useEffect(() => {
+    if (post.post_type === "idea" && participantsCount > 0 && participants.length === 0) {
+      loadParticipantsPreview();
+    }
+  }, [post.post_type, participantsCount]);
+
+  const loadParticipantsPreview = async () => {
+    const { data } = await getIdeaParticipants(post.id);
+    if (data) {
+      setParticipants(data);
+    }
+  };
+
+  useEffect(() => {
     if (!videoRef) return;
 
     const observer = new IntersectionObserver(
@@ -133,11 +146,21 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
 
   const getPostTypeLabel = () => {
     switch (post.post_type) {
-      case "idea": return "💡 Idea";
-      case "proyecto": return "🚀 Proyecto";
-      case "evento": return "📅 Evento";
-      case "equipo": return "👥 Equipo";
+      case "idea": return "Idea";
+      case "proyecto": return "Proyecto";
+      case "evento": return "Evento";
+      case "equipo": return "Equipo";
       default: return null;
+    }
+  };
+
+  const getPostTypeBadgeStyle = () => {
+    switch (post.post_type) {
+      case "idea": return "bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0";
+      case "proyecto": return "bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0";
+      case "evento": return "bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0";
+      case "equipo": return "bg-gradient-to-r from-green-500 to-green-600 text-white border-0";
+      default: return "";
     }
   };
 
@@ -193,8 +216,7 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
           <div className="flex items-start gap-2">
             {getPostTypeLabel() && (
               <Badge
-                variant="default"
-                className="text-xs font-medium px-2.5 py-0.5 whitespace-nowrap rounded"
+                className={`text-xs font-semibold px-3 py-1 whitespace-nowrap rounded-full shadow-sm ${getPostTypeBadgeStyle()}`}
               >
                 {getPostTypeLabel()}
               </Badge>
@@ -209,44 +231,72 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
 
         <div className="space-y-4">
           {post.content && (
-            <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
-              {post.content}
-            </p>
+            <div className="space-y-2">
+              {(() => {
+                const lines = post.content.split('\n').filter(l => l.trim());
+                const firstLine = lines[0];
+                const isTitle = firstLine && firstLine.length < 100 && lines.length > 1;
+
+                return lines.map((line, index) => {
+                  if (index === 0 && isTitle) {
+                    return (
+                      <h3 key={index} className="text-xl font-bold text-foreground leading-tight">
+                        {line}
+                      </h3>
+                    );
+                  }
+                  return (
+                    <p key={index} className="text-sm text-foreground/90 leading-relaxed">
+                      {line}
+                    </p>
+                  );
+                });
+              })()}
+            </div>
           )}
 
           {post.post_type === "idea" && (
-            <div className="flex items-center gap-3 pt-2">
+            <div className="space-y-3 pt-2">
               {isJoined ? (
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="lg"
                   onClick={handleLeaveIdea}
-                  className="gap-2"
+                  className="w-full gap-2 h-12 font-semibold"
                 >
-                  <UserMinus className="h-4 w-4" />
+                  <UserMinus className="h-5 w-5" />
                   Salir de la idea
                 </Button>
               ) : (
                 <Button
-                  variant="default"
-                  size="sm"
+                  size="lg"
                   onClick={handleJoinIdea}
-                  className="gap-2"
+                  className="w-full gap-2 h-12 font-semibold bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white border-0 shadow-lg"
                 >
-                  <UserPlus className="h-4 w-4" />
+                  <UserPlus className="h-5 w-5" />
                   Unirse a la idea
                 </Button>
               )}
               {participantsCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={loadParticipants}
-                  className="gap-2"
-                >
-                  <Users className="h-4 w-4" />
-                  {participantsCount} {participantsCount === 1 ? "participante" : "participantes"}
-                </Button>
+                <div className="flex items-center gap-3">
+                  <div className="flex -space-x-2">
+                    {participants.slice(0, 5).map((participant, idx) => (
+                      <Avatar key={participant.user_id} className="w-8 h-8 border-2 border-background ring-1 ring-border">
+                        <AvatarImage src={participant.profiles.avatar_url} />
+                        <AvatarFallback className="text-xs">
+                          {participant.profiles.username.substring(0, 1).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    ))}
+                  </div>
+                  <button
+                    onClick={loadParticipants}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                  >
+                    <Users className="h-4 w-4" />
+                    {participantsCount === 1 ? "1 participante" : `+${participantsCount} participantes`}
+                  </button>
+                </div>
               )}
             </div>
           )}
