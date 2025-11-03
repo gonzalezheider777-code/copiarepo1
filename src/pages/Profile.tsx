@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Grid3x3, Award, Bookmark, GraduationCap, Settings, Loader2 } from "lucide-react";
+import { Grid3x3, Award, Bookmark, GraduationCap, Settings, Loader2, UserPlus, UserMinus } from "lucide-react";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,28 +17,82 @@ import { PostCard } from "@/components/PostCard";
 import { Post } from "@/hooks/useFeed";
 
 const Profile = () => {
+  const { username } = useParams<{ username: string }>();
+  const navigate = useNavigate();
   const { user } = useAuth();
-  const { profile, loading: profileLoading } = useProfile();
+  const { profile: currentUserProfile, getProfile, checkIfFollowing, followUser, unfollowUser, getFollowersCount, getFollowingCount } = useProfile();
+  const [displayProfile, setDisplayProfile] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("grid");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [savedPosts, setSavedPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [isFollowing, setIsFollowing] = useState(false);
   const [stats, setStats] = useState({
     posts: 0,
     followers: 0,
     following: 0,
   });
 
-  useEffect(() => {
-    if (user) {
-      loadUserPosts();
-      loadSavedPosts();
-      loadStats();
-    }
-  }, [user]);
+  const isOwnProfile = displayProfile?.id === user?.id;
 
-  const loadUserPosts = async () => {
+  useEffect(() => {
+    if (username) {
+      loadProfileData();
+    }
+  }, [username]);
+
+  const loadProfileData = async () => {
+    try {
+      setLoading(true);
+      const { data: profileData, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("username", username)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!profileData) {
+        navigate("/404");
+        return;
+      }
+
+      setDisplayProfile(profileData);
+
+      if (profileData.id !== user?.id) {
+        const { isFollowing: following } = await checkIfFollowing(profileData.id);
+        setIsFollowing(following);
+      }
+
+      await loadUserPosts(profileData.id);
+      if (profileData.id === user?.id) {
+        await loadSavedPosts();
+      }
+      await loadStats(profileData.id);
+    } catch (error) {
+      console.error("Error loading profile:", error);
+      navigate("/404");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFollowToggle = async () => {
+    if (!displayProfile) return;
+
+    if (isFollowing) {
+      await unfollowUser(displayProfile.id);
+      setIsFollowing(false);
+      setStats(prev => ({ ...prev, followers: Math.max(0, prev.followers - 1) }));
+    } else {
+      await followUser(displayProfile.id);
+      setIsFollowing(true);
+      setStats(prev => ({ ...prev, followers: prev.followers + 1 }));
+    }
+  };
+
+  const loadUserPosts = async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from("posts")
@@ -51,7 +106,7 @@ const Profile = () => {
             institution_name
           )
         `)
-        .eq("user_id", user?.id)
+        .eq("user_id", userId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -113,21 +168,21 @@ const Profile = () => {
     }
   };
 
-  const loadStats = async () => {
+  const loadStats = async (userId: string) => {
     try {
       const [postsResult, followersResult, followingResult] = await Promise.all([
         supabase
           .from("posts")
           .select("id", { count: "exact" })
-          .eq("user_id", user?.id),
+          .eq("user_id", userId),
         supabase
           .from("followers")
           .select("id", { count: "exact" })
-          .eq("following_id", user?.id),
+          .eq("following_id", userId),
         supabase
           .from("followers")
           .select("id", { count: "exact" })
-          .eq("follower_id", user?.id),
+          .eq("follower_id", userId),
       ]);
 
       setStats({
@@ -140,7 +195,7 @@ const Profile = () => {
     }
   };
 
-  if (profileLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-background">
         <TopBar />
@@ -161,37 +216,62 @@ const Profile = () => {
     );
   }
 
+  if (!displayProfile) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <TopBar />
 
       <div className="container mx-auto px-0 md:px-4 pt-20 pb-24 max-w-2xl">
         <div className="bg-card rounded-t-3xl p-8 border border-border shadow-lg">
-          {profile?.cover_url && (
+          {displayProfile?.cover_url && (
             <div
               className="w-full h-48 -mt-8 -mx-8 mb-6 rounded-t-3xl bg-cover bg-center"
-              style={{ backgroundImage: `url(${profile.cover_url})` }}
+              style={{ backgroundImage: `url(${displayProfile.cover_url})` }}
             />
           )}
 
           <div className="flex items-start justify-between mb-6">
             <div className="relative">
               <Avatar className="w-28 h-28 border-4 border-primary/20 shadow-xl ring-4 ring-primary/10">
-                <AvatarImage src={profile?.avatar_url} />
+                <AvatarImage src={displayProfile?.avatar_url} />
                 <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-2xl font-bold">
-                  {profile?.username?.slice(0, 2).toUpperCase()}
+                  {displayProfile?.username?.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="shadow-sm gap-2"
-              onClick={() => setEditDialogOpen(true)}
-            >
-              <Settings className="h-4 w-4" />
-              Editar perfil
-            </Button>
+            {isOwnProfile ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="shadow-sm gap-2"
+                onClick={() => setEditDialogOpen(true)}
+              >
+                <Settings className="h-4 w-4" />
+                Editar perfil
+              </Button>
+            ) : (
+              <Button
+                variant={isFollowing ? "outline" : "default"}
+                size="sm"
+                className="shadow-sm gap-2"
+                onClick={handleFollowToggle}
+              >
+                {isFollowing ? (
+                  <>
+                    <UserMinus className="h-4 w-4" />
+                    Dejar de seguir
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-4 w-4" />
+                    Seguir
+                  </>
+                )}
+              </Button>
+            )}
           </div>
 
           <div className="flex justify-around py-6 my-6 border-y border-border">
@@ -212,14 +292,14 @@ const Profile = () => {
           </div>
 
           <div>
-            <h2 className="text-2xl font-bold text-foreground mb-2">{profile?.username}</h2>
-            {profile?.bio && (
-              <p className="text-sm text-muted-foreground leading-relaxed mb-3">{profile.bio}</p>
+            <h2 className="text-2xl font-bold text-foreground mb-2">{displayProfile?.username}</h2>
+            {displayProfile?.bio && (
+              <p className="text-sm text-muted-foreground leading-relaxed mb-3">{displayProfile.bio}</p>
             )}
           </div>
         </div>
 
-        {(profile?.institution_name || profile?.career) && (
+        {(displayProfile?.institution_name || displayProfile?.career) && (
           <Card className="mt-6 border-primary/20 bg-gradient-to-br from-card to-primary/5">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
@@ -230,25 +310,25 @@ const Profile = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {profile.institution_name && (
+              {displayProfile.institution_name && (
                 <div>
                   <p className="text-sm font-semibold text-foreground mb-1">
-                    {profile.institution_name}
+                    {displayProfile.institution_name}
                   </p>
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-3">
-                {profile.career && (
+                {displayProfile.career && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Carrera</p>
-                    <p className="text-sm font-medium text-foreground">{profile.career}</p>
+                    <p className="text-sm font-medium text-foreground">{displayProfile.career}</p>
                   </div>
                 )}
-                {profile.semester && (
+                {displayProfile.semester && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Semestre</p>
-                    <p className="text-sm font-medium text-foreground">{profile.semester}</p>
+                    <p className="text-sm font-medium text-foreground">{displayProfile.semester}</p>
                   </div>
                 )}
               </div>
@@ -264,12 +344,14 @@ const Profile = () => {
             >
               <Grid3x3 className="w-6 h-6" />
             </TabsTrigger>
-            <TabsTrigger
-              value="saved"
-              className="flex-1 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full text-muted-foreground data-[state=active]:text-primary transition-all"
-            >
-              <Bookmark className="w-6 h-6" />
-            </TabsTrigger>
+            {isOwnProfile && (
+              <TabsTrigger
+                value="saved"
+                className="flex-1 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full text-muted-foreground data-[state=active]:text-primary transition-all"
+              >
+                <Bookmark className="w-6 h-6" />
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="grid" className="mt-0 bg-card rounded-b-3xl border-x border-b border-border shadow-lg">

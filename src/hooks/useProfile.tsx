@@ -144,6 +144,110 @@ export const useProfile = () => {
     }
   };
 
+  const followUser = async (userId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuario no autenticado");
+
+      const { error } = await supabase
+        .from("followers")
+        .insert({
+          follower_id: user.id,
+          following_id: userId,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Ahora sigues a este usuario",
+      });
+
+      return { error: null };
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      return { error };
+    }
+  };
+
+  const unfollowUser = async (userId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuario no autenticado");
+
+      const { error } = await supabase
+        .from("followers")
+        .delete()
+        .eq("follower_id", user.id)
+        .eq("following_id", userId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Dejaste de seguir a este usuario",
+      });
+
+      return { error: null };
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      return { error };
+    }
+  };
+
+  const checkIfFollowing = async (userId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { isFollowing: false, error: null };
+
+      const { data, error } = await supabase
+        .from("followers")
+        .select("id")
+        .eq("follower_id", user.id)
+        .eq("following_id", userId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return { isFollowing: !!data, error: null };
+    } catch (error: any) {
+      return { isFollowing: false, error };
+    }
+  };
+
+  const getFollowersCount = async (userId: string) => {
+    try {
+      const { count, error } = await supabase
+        .from("followers")
+        .select("*", { count: "exact", head: true })
+        .eq("following_id", userId);
+
+      if (error) throw error;
+      return { count: count || 0, error: null };
+    } catch (error: any) {
+      return { count: 0, error };
+    }
+  };
+
+  const getFollowingCount = async (userId: string) => {
+    try {
+      const { count, error } = await supabase
+        .from("followers")
+        .select("*", { count: "exact", head: true })
+        .eq("follower_id", userId);
+
+      if (error) throw error;
+      return { count: count || 0, error: null };
+    } catch (error: any) {
+      return { count: 0, error };
+    }
+  };
+
   return {
     profile,
     loading,
@@ -152,5 +256,10 @@ export const useProfile = () => {
     updateProfile,
     updateAvatar,
     updateCover,
+    followUser,
+    unfollowUser,
+    checkIfFollowing,
+    getFollowersCount,
+    getFollowingCount,
   };
 };

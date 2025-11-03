@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { MessageSquare, Menu, Settings, User, Bell, HelpCircle, LogOut, Shield, Palette, Globe, Users, Bookmark, Info, AlertCircle, Mail, Home, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Drawer,
   DrawerClose,
@@ -19,6 +19,7 @@ export const TopBar = () => {
   const [open, setOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const isDark = localStorage.getItem('darkMode') === 'true';
@@ -39,17 +40,26 @@ export const TopBar = () => {
     }
   };
 
+  const handleLogoClick = (e: React.MouseEvent) => {
+    if (location.pathname === '/') {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      navigate('/');
+    }
+  };
+
   return (
     <header className="sticky top-0 bg-card border-b border-border z-40 w-full">
       <div className="flex items-center justify-between h-14 px-4">
-        <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+        <a href="/" onClick={handleLogoClick} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity cursor-pointer">
           <div className="w-8 h-8 rounded bg-primary flex items-center justify-center">
             <span className="text-white font-bold text-base">UC</span>
           </div>
           <div>
             <h1 className="font-bold text-base text-foreground">UniConnect</h1>
           </div>
-        </Link>
+        </a>
         
         <div className="flex items-center gap-2">
           <Link to="/messages">
