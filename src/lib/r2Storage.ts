@@ -10,7 +10,7 @@ const r2Client = new S3Client({
 });
 
 const BUCKET_NAME = "uniconnect";
-const PUBLIC_URL = "https://pub-YOUR_PUBLIC_URL.r2.dev";
+const PUBLIC_URL = "https://pub-49002bbc3668412cb29fcc47d87fd766.r2.dev";
 
 export const uploadToR2 = async (
   file: File,
