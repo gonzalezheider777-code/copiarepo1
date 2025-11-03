@@ -237,6 +237,83 @@ export const usePosts = () => {
     }
   };
 
+  const joinIdea = async (postId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuario no autenticado");
+
+      const { error } = await supabase
+        .from("idea_participants")
+        .insert({ post_id: postId, user_id: user.id });
+
+      if (error) throw error;
+
+      toast({
+        title: "¡Te has unido!",
+        description: "Ahora eres parte de esta idea",
+      });
+
+      return { error: null };
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      return { error };
+    }
+  };
+
+  const leaveIdea = async (postId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuario no autenticado");
+
+      const { error } = await supabase
+        .from("idea_participants")
+        .delete()
+        .eq("post_id", postId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Has salido",
+        description: "Ya no eres parte de esta idea",
+      });
+
+      return { error: null };
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      return { error };
+    }
+  };
+
+  const getIdeaParticipants = async (postId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("idea_participants")
+        .select(`
+          user_id,
+          profiles:user_id (
+            username,
+            avatar_url
+          )
+        `)
+        .eq("post_id", postId);
+
+      if (error) throw error;
+
+      return { data, error: null };
+    } catch (error: any) {
+      return { data: null, error };
+    }
+  };
+
   return {
     loading,
     createPost,
@@ -245,5 +322,8 @@ export const usePosts = () => {
     toggleSavePost,
     hidePost,
     reportPost,
+    joinIdea,
+    leaveIdea,
+    getIdeaParticipants,
   };
 };

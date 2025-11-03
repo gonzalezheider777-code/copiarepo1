@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Heart, MessageCircle, Share2, Bookmark, ThumbsUp, Lightbulb, Flame, Users, MoreVertical } from "lucide-react";
+import { Heart, MessageCircle, Share2, Bookmark, ThumbsUp, Lightbulb, Flame, Users, MoreVertical, UserPlus, UserMinus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,10 @@ import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import ReactionsDialog from "./ReactionsDialog";
+import IdeaParticipantsDialog from "./IdeaParticipantsDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { usePosts } from "@/hooks/usePosts";
 
 interface PostCardProps {
   post: Post;
@@ -29,7 +32,15 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
   const [postReactions, setPostReactions] = useState<any[]>([]);
   const [loadingReactions, setLoadingReactions] = useState(false);
   const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
+  const [participantsDialogOpen, setParticipantsDialogOpen] = useState(false);
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [isJoined, setIsJoined] = useState(post.user_joined || false);
+  const [participantsCount, setParticipantsCount] = useState(post.participants_count || 0);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { joinIdea, leaveIdea, getIdeaParticipants } = usePosts();
+
+  const isOwnPost = user?.id === post.user_id;
 
   useEffect(() => {
     if (!videoRef) return;
@@ -130,6 +141,30 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
     }
   };
 
+  const handleJoinIdea = async () => {
+    const { error } = await joinIdea(post.id);
+    if (!error) {
+      setIsJoined(true);
+      setParticipantsCount((prev) => prev + 1);
+    }
+  };
+
+  const handleLeaveIdea = async () => {
+    const { error } = await leaveIdea(post.id);
+    if (!error) {
+      setIsJoined(false);
+      setParticipantsCount((prev) => Math.max(0, prev - 1));
+    }
+  };
+
+  const loadParticipants = async () => {
+    const { data } = await getIdeaParticipants(post.id);
+    if (data) {
+      setParticipants(data);
+      setParticipantsDialogOpen(true);
+    }
+  };
+
   return (
     <div className="bg-card border-b border-border transition-all duration-200 hover:bg-card/50">
       <div className="px-4 py-5 max-w-screen-xl mx-auto">
@@ -166,7 +201,7 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
             )}
             <PostMenu
               postId={post.id}
-              isOwnPost={false}
+              isOwnPost={isOwnPost}
               onDelete={onDelete}
             />
           </div>
@@ -177,6 +212,43 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
             <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
               {post.content}
             </p>
+          )}
+
+          {post.post_type === "idea" && (
+            <div className="flex items-center gap-3 pt-2">
+              {isJoined ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLeaveIdea}
+                  className="gap-2"
+                >
+                  <UserMinus className="h-4 w-4" />
+                  Salir de la idea
+                </Button>
+              ) : (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleJoinIdea}
+                  className="gap-2"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Unirse a la idea
+                </Button>
+              )}
+              {participantsCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={loadParticipants}
+                  className="gap-2"
+                >
+                  <Users className="h-4 w-4" />
+                  {participantsCount} {participantsCount === 1 ? "participante" : "participantes"}
+                </Button>
+              )}
+            </div>
           )}
 
           {post.media_url && post.media_type === "image" && (
@@ -317,6 +389,12 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
         open={reactionsDialogOpen}
         onOpenChange={setReactionsDialogOpen}
         reactions={postReactions}
+      />
+
+      <IdeaParticipantsDialog
+        open={participantsDialogOpen}
+        onOpenChange={setParticipantsDialogOpen}
+        participants={participants}
       />
     </div>
   );

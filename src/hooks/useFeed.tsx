@@ -28,6 +28,8 @@ export interface Post {
   comments_count?: number;
   user_reaction?: string;
   is_saved?: boolean;
+  participants_count?: number;
+  user_joined?: boolean;
 }
 
 export const useFeed = (filterType: string = "all", limit: number = 20) => {
@@ -80,7 +82,7 @@ export const useFeed = (filterType: string = "all", limit: number = 20) => {
 
       const postsWithCounts = await Promise.all(
         (data || []).map(async (post) => {
-          const [reactionsResult, commentsResult, userReactionResult, savedResult] = await Promise.all([
+          const [reactionsResult, commentsResult, userReactionResult, savedResult, participantsResult, userJoinedResult] = await Promise.all([
             supabase
               .from("reactions")
               .select("id", { count: "exact" })
@@ -100,7 +102,21 @@ export const useFeed = (filterType: string = "all", limit: number = 20) => {
               .select("id")
               .eq("post_id", post.id)
               .eq("user_id", user.id)
-              .maybeSingle()
+              .maybeSingle(),
+            post.post_type === "idea"
+              ? supabase
+                  .from("idea_participants")
+                  .select("id", { count: "exact" })
+                  .eq("post_id", post.id)
+              : Promise.resolve({ count: 0 }),
+            post.post_type === "idea"
+              ? supabase
+                  .from("idea_participants")
+                  .select("id")
+                  .eq("post_id", post.id)
+                  .eq("user_id", user.id)
+                  .maybeSingle()
+              : Promise.resolve({ data: null })
           ]);
 
           return {
@@ -108,7 +124,9 @@ export const useFeed = (filterType: string = "all", limit: number = 20) => {
             reactions_count: reactionsResult.count || 0,
             comments_count: commentsResult.count || 0,
             user_reaction: userReactionResult.data?.reaction_type,
-            is_saved: !!savedResult.data
+            is_saved: !!savedResult.data,
+            participants_count: participantsResult.count || 0,
+            user_joined: !!userJoinedResult.data
           };
         })
       );

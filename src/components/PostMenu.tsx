@@ -1,4 +1,4 @@
-import { MoreHorizontal, Bookmark, Link as LinkIcon, ThumbsUp, ThumbsDown, EyeOff, UserX, Flag } from "lucide-react";
+import { MoreHorizontal, Bookmark, Link as LinkIcon, ThumbsUp, ThumbsDown, EyeOff, UserX, Flag, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -112,7 +112,7 @@ export const PostMenu = ({
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
-              <Flag className="h-4 w-4 mr-3" />
+              <Trash2 className="h-4 w-4 mr-3" />
               Eliminar publicación
             </DropdownMenuItem>
           </>
