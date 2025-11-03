@@ -15,6 +15,8 @@ import { EditProfileDialog } from "@/components/EditProfileDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PostCard } from "@/components/PostCard";
 import { Post } from "@/hooks/useFeed";
+import { FollowersDialog } from "@/components/FollowersDialog";
+import { ImageLightbox } from "@/components/ImageLightbox";
 
 const Profile = () => {
   const { username } = useParams<{ username: string }>();
@@ -24,6 +26,10 @@ const Profile = () => {
   const [displayProfile, setDisplayProfile] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("grid");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [followersDialogOpen, setFollowersDialogOpen] = useState(false);
+  const [followersDialogTab, setFollowersDialogTab] = useState<"followers" | "following">("followers");
+  const [avatarLightboxOpen, setAvatarLightboxOpen] = useState(false);
+  const [coverLightboxOpen, setCoverLightboxOpen] = useState(false);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [savedPosts, setSavedPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
@@ -228,14 +234,18 @@ const Profile = () => {
         <div className="bg-card rounded-t-3xl p-8 border border-border shadow-lg">
           {displayProfile?.cover_url && (
             <div
-              className="w-full h-48 -mt-8 -mx-8 mb-6 rounded-t-3xl bg-cover bg-center"
+              className="w-full h-48 -mt-8 -mx-8 mb-6 rounded-t-3xl bg-cover bg-center cursor-pointer hover:opacity-90 transition-opacity"
               style={{ backgroundImage: `url(${displayProfile.cover_url})` }}
+              onClick={() => setCoverLightboxOpen(true)}
             />
           )}
 
           <div className="flex items-start justify-between mb-6">
             <div className="relative">
-              <Avatar className="w-28 h-28 border-4 border-primary/20 shadow-xl ring-4 ring-primary/10">
+              <Avatar
+                className="w-28 h-28 border-4 border-primary/20 shadow-xl ring-4 ring-primary/10 cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => displayProfile?.avatar_url && setAvatarLightboxOpen(true)}
+              >
                 <AvatarImage src={displayProfile?.avatar_url} />
                 <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-2xl font-bold">
                   {displayProfile?.username?.slice(0, 2).toUpperCase()}
@@ -280,12 +290,24 @@ const Profile = () => {
               <div className="text-sm text-muted-foreground font-medium">Posts</div>
             </div>
             <div className="w-px bg-border"></div>
-            <div className="text-center">
+            <div
+              className="text-center cursor-pointer hover:bg-muted/50 px-4 py-2 rounded-lg transition-colors"
+              onClick={() => {
+                setFollowersDialogTab("followers");
+                setFollowersDialogOpen(true);
+              }}
+            >
               <div className="text-3xl font-bold text-foreground mb-1">{stats.followers}</div>
               <div className="text-sm text-muted-foreground font-medium">Seguidores</div>
             </div>
             <div className="w-px bg-border"></div>
-            <div className="text-center">
+            <div
+              className="text-center cursor-pointer hover:bg-muted/50 px-4 py-2 rounded-lg transition-colors"
+              onClick={() => {
+                setFollowersDialogTab("following");
+                setFollowersDialogOpen(true);
+              }}
+            >
               <div className="text-3xl font-bold text-foreground mb-1">{stats.following}</div>
               <div className="text-sm text-muted-foreground font-medium">Seguidos</div>
             </div>
@@ -405,6 +427,33 @@ const Profile = () => {
 
       <BottomNav />
       <EditProfileDialog open={editDialogOpen} onOpenChange={setEditDialogOpen} />
+
+      {displayProfile && (
+        <FollowersDialog
+          open={followersDialogOpen}
+          onOpenChange={setFollowersDialogOpen}
+          userId={displayProfile.id}
+          initialTab={followersDialogTab}
+        />
+      )}
+
+      {displayProfile?.avatar_url && (
+        <ImageLightbox
+          src={displayProfile.avatar_url}
+          alt={`${displayProfile.username} avatar`}
+          open={avatarLightboxOpen}
+          onOpenChange={setAvatarLightboxOpen}
+        />
+      )}
+
+      {displayProfile?.cover_url && (
+        <ImageLightbox
+          src={displayProfile.cover_url}
+          alt={`${displayProfile.username} cover`}
+          open={coverLightboxOpen}
+          onOpenChange={setCoverLightboxOpen}
+        />
+      )}
     </div>
   );
 };

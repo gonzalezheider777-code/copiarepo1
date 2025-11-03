@@ -8,24 +8,41 @@ import { CreateTeamForm } from "./CreateTeamForm";
 import { CreateEventForm } from "./CreateEventForm";
 import CreateTextPostForm from "./CreateTextPostForm";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 
 export const BottomNav = () => {
   const [createOpen, setCreateOpen] = useState(false);
-  
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { profile } = useProfile();
+
+  const handleHomeClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (location.pathname === '/') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      navigate('/');
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
+    }
+  };
+
+  const profileUsername = profile?.username || user?.id;
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border z-50 safe-bottom">
       <div className="flex items-center justify-around h-16 max-w-screen-xl mx-auto px-2">
-        <Link to="/">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="flex-col h-auto py-2 gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
-          >
-            <Home className="h-6 w-6" />
-            <span className="text-xs font-medium">Inicio</span>
-          </Button>
-        </Link>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="flex-col h-auto py-2 gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+          onClick={handleHomeClick}
+        >
+          <Home className="h-6 w-6" />
+          <span className="text-xs font-medium">Inicio</span>
+        </Button>
         <Link to="/search">
           <Button
             variant="ghost"
@@ -88,7 +105,7 @@ export const BottomNav = () => {
             <span className="absolute top-1 right-2 h-2 w-2 bg-destructive rounded-full"></span>
           </Button>
         </Link>
-        <Link to="/profile/tech_innovator">
+        <Link to={`/profile/${profileUsername}`}>
           <Button
             variant="ghost"
             size="icon"

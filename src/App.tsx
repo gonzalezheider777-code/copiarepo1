@@ -11,6 +11,7 @@ import Search from "./pages/Search";
 import Messages from "./pages/Messages";
 import Notifications from "./pages/Notifications";
 import Admin from "./pages/Admin";
+import Saved from "./pages/Saved";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -86,6 +87,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Admin />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/saved"
+              element={
+                <ProtectedRoute>
+                  <Saved />
                 </ProtectedRoute>
               }
             />

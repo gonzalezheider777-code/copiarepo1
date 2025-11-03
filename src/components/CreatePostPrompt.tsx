@@ -8,10 +8,26 @@ import { CreateTeamForm } from "./CreateTeamForm";
 import { CreateEventForm } from "./CreateEventForm";
 import CreateTextPostForm from "./CreateTextPostForm";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 
-export const CreatePostPrompt = () => {
+interface CreatePostPromptProps {
+  onPostCreated?: () => void;
+}
+
+export const CreatePostPrompt = ({ onPostCreated }: CreatePostPromptProps) => {
   const [open, setOpen] = useState(false);
-  
+  const { user } = useAuth();
+  const { profile } = useProfile();
+
+  const getInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const displayName = profile?.username || user?.email?.split('@')[0] || 'Usuario';
+  const avatarUrl = profile?.avatar_url;
+
   return (
     <div className="mb-6 bg-card border-y border-border">
       <div className="p-5">
@@ -19,9 +35,9 @@ export const CreatePostPrompt = () => {
         <DialogTrigger asChild>
           <div className="flex items-center gap-3 cursor-pointer group">
             <Avatar className="h-12 w-12 ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all flex-shrink-0">
-              <AvatarImage src="/placeholder.svg" alt="Usuario" />
+              <AvatarImage src={avatarUrl} alt={displayName} />
               <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold">
-                TU
+                {getInitials(displayName)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 bg-secondary hover:bg-secondary/80 px-5 py-3.5 rounded-full transition-all duration-200 border border-border group-hover:border-primary/20 group-hover:shadow-sm">
@@ -61,7 +77,10 @@ export const CreatePostPrompt = () => {
               </TabsList>
             </div>
             <TabsContent value="text">
-              <CreateTextPostForm onClose={() => setOpen(false)} />
+              <CreateTextPostForm
+                onClose={() => setOpen(false)}
+                onPostCreated={onPostCreated}
+              />
             </TabsContent>
             <TabsContent value="idea">
               <CreateIdeaForm />

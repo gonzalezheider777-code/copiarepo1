@@ -3,6 +3,8 @@ import { MessageSquare, Menu, Settings, User, Bell, HelpCircle, LogOut, Shield, 
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import {
   Drawer,
   DrawerClose,
@@ -20,6 +22,8 @@ export const TopBar = () => {
   const [darkMode, setDarkMode] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const { profile } = useProfile();
 
   useEffect(() => {
     const isDark = localStorage.getItem('darkMode') === 'true';
@@ -41,13 +45,28 @@ export const TopBar = () => {
   };
 
   const handleLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
     if (location.pathname === '/') {
-      e.preventDefault();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       navigate('/');
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     }
   };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setOpen(false);
+    navigate('/login');
+  };
+
+  const getInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const displayName = profile?.username || user?.email?.split('@')[0] || 'Usuario';
+  const avatarUrl = profile?.avatar_url;
 
   return (
     <header className="sticky top-0 bg-card border-b border-border z-40 w-full">
@@ -87,14 +106,14 @@ export const TopBar = () => {
               <DrawerHeader className="border-b border-border pb-4">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-16 w-16 ring-2 ring-primary/20">
-                    <AvatarImage src="/placeholder.svg" alt="User" />
+                    <AvatarImage src={avatarUrl} alt={displayName} />
                     <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-lg font-semibold">
-                      TU
+                      {getInitials(displayName)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="text-left">
-                    <DrawerTitle className="text-xl">Innovador Tech</DrawerTitle>
-                    <DrawerDescription className="text-sm">@tech_innovator</DrawerDescription>
+                    <DrawerTitle className="text-xl">{displayName}</DrawerTitle>
+                    <DrawerDescription className="text-sm">@{profile?.username || 'usuario'}</DrawerDescription>
                   </div>
                 </div>
               </DrawerHeader>
@@ -117,7 +136,7 @@ export const TopBar = () => {
                 </Link>
 
                 {/* Mi Perfil */}
-                <Link to="/profile/tech_innovator" onClick={() => setOpen(false)}>
+                <Link to={`/profile/${profile?.username || user?.id}`} onClick={() => setOpen(false)}>
                   <Button 
                     variant="ghost" 
                     className={`w-full justify-start h-auto py-4 px-4 hover:bg-primary/10 ${
@@ -170,13 +189,20 @@ export const TopBar = () => {
                   </Button>
                 </Link>
 
-                <Button variant="ghost" className="w-full justify-start h-auto py-4 px-4 hover:bg-primary/10">
-                  <Bookmark className="mr-3 h-5 w-5 text-primary" />
-                  <div className="flex flex-col items-start">
-                    <span className="font-semibold text-base">Guardados</span>
-                    <span className="text-xs text-muted-foreground">Publicaciones guardadas</span>
-                  </div>
-                </Button>
+                <Link to="/saved" onClick={() => setOpen(false)}>
+                  <Button
+                    variant="ghost"
+                    className={`w-full justify-start h-auto py-4 px-4 hover:bg-primary/10 ${
+                      location.pathname === "/saved" ? "bg-primary/20 text-primary" : ""
+                    }`}
+                  >
+                    <Bookmark className="mr-3 h-5 w-5 text-primary" />
+                    <div className="flex flex-col items-start">
+                      <span className="font-semibold text-base">Guardados</span>
+                      <span className="text-xs text-muted-foreground">Publicaciones guardadas</span>
+                    </div>
+                  </Button>
+                </Link>
 
                 <Separator className="my-2" />
 
@@ -246,7 +272,11 @@ export const TopBar = () => {
 
                 <Separator className="my-2" />
 
-                <Button variant="ghost" className="w-full justify-start h-auto py-4 px-4 hover:bg-destructive/10 text-destructive hover:text-destructive">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start h-auto py-4 px-4 hover:bg-destructive/10 text-destructive hover:text-destructive"
+                  onClick={handleSignOut}
+                >
                   <LogOut className="mr-3 h-5 w-5" />
                   <span className="font-semibold text-base">Cerrar Sesión</span>
                 </Button>
@@ -260,11 +290,11 @@ export const TopBar = () => {
             </DrawerContent>
           </Drawer>
           
-          <Link to="/profile/tech_innovator">
+          <Link to={`/profile/${profile?.username || user?.id}`}>
             <Avatar className="h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity">
-              <AvatarImage src="/placeholder.svg" alt="User" />
+              <AvatarImage src={avatarUrl} alt={displayName} />
               <AvatarFallback className="bg-primary text-white text-xs font-semibold">
-                TU
+                {getInitials(displayName)}
               </AvatarFallback>
             </Avatar>
           </Link>

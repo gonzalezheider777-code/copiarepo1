@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Heart, MessageCircle, Share2, Bookmark, ThumbsUp, Lightbulb, Flame, Users, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,6 +10,9 @@ import { PostMenu } from "./PostMenu";
 import { Post } from "@/hooks/useFeed";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
+import { Link } from "react-router-dom";
+import ReactionsDialog from "./ReactionsDialog";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PostCardProps {
   post: Post;
@@ -22,6 +25,9 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
   const [showReactions, setShowReactions] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const [reactionsDialogOpen, setReactionsDialogOpen] = useState(false);
+  const [postReactions, setPostReactions] = useState<any[]>([]);
+  const [loadingReactions, setLoadingReactions] = useState(false);
   const { toast } = useToast();
 
   const reactions = [
@@ -57,6 +63,39 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
     });
   };
 
+  const loadReactions = async () => {
+    try {
+      setLoadingReactions(true);
+      const { data, error } = await supabase
+        .from("reactions")
+        .select(`
+          id,
+          reaction_type,
+          user_id,
+          profiles:user_id (
+            username,
+            avatar_url
+          )
+        `)
+        .eq("post_id", post.id);
+
+      if (error) throw error;
+
+      const formattedReactions = (data || []).map((reaction: any) => ({
+        userId: reaction.user_id,
+        userName: reaction.profiles?.username || "Usuario",
+        userAvatar: reaction.profiles?.avatar_url || "",
+        type: reaction.reaction_type,
+      }));
+
+      setPostReactions(formattedReactions);
+    } catch (error) {
+      console.error("Error loading reactions:", error);
+    } finally {
+      setLoadingReactions(false);
+    }
+  };
+
   const getPostTypeLabel = () => {
     switch (post.post_type) {
       case "idea": return "💡 Idea";
@@ -71,16 +110,20 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
     <div className="bg-card border-b border-border transition-all duration-200 hover:bg-card/50">
       <div className="px-4 py-5 max-w-screen-xl mx-auto">
         <div className="flex items-start gap-3 mb-4">
-          <Avatar className="h-11 w-11 ring-1 ring-border flex-shrink-0">
-            <AvatarImage src={post.profiles.avatar_url} alt={post.profiles.username} />
-            <AvatarFallback className="bg-muted text-foreground font-semibold text-sm">
-              {post.profiles.username.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <Link to={`/profile/${post.profiles.username}`} className="flex-shrink-0">
+            <Avatar className="h-11 w-11 ring-1 ring-border hover:ring-2 hover:ring-primary transition-all cursor-pointer">
+              <AvatarImage src={post.profiles.avatar_url} alt={post.profiles.username} />
+              <AvatarFallback className="bg-muted text-foreground font-semibold text-sm">
+                {post.profiles.username.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </Link>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-foreground text-sm leading-tight mb-1">
-              {post.profiles.username}
-            </h3>
+            <Link to={`/profile/${post.profiles.username}`}>
+              <h3 className="font-semibold text-foreground text-sm leading-tight mb-1 hover:underline cursor-pointer">
+                {post.profiles.username}
+              </h3>
+            </Link>
             <p className="text-xs text-muted-foreground leading-relaxed">
               {post.profiles.career && post.profiles.institution_name
                 ? `${post.profiles.career} • ${post.profiles.institution_name}`
@@ -124,6 +167,19 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
               />
             </div>
           )}
+
+          {post.media_url && post.media_type === "video" && (
+            <div className="rounded overflow-hidden border border-border">
+              <video
+                src={post.media_url}
+                controls
+                className="w-full h-auto max-h-96 bg-black"
+                preload="metadata"
+              >
+                Tu navegador no soporta el elemento de video.
+              </video>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-1 mt-5 pt-4 border-t border-border">
@@ -138,9 +194,16 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
               }`}
               onMouseEnter={() => setShowReactions(true)}
               onMouseLeave={() => setShowReactions(false)}
+              onClick={(e) => {
+                if (post.reactions_count && post.reactions_count > 0) {
+                  e.stopPropagation();
+                  loadReactions();
+                  setReactionsDialogOpen(true);
+                }
+              }}
             >
               <ReactionIcon className={`h-4 w-4 ${post.user_reaction ? 'fill-current' : ''}`} />
-              <span className="text-sm font-medium">{post.reactions_count || 0}</span>
+              <span className="text-sm font-medium cursor-pointer">{post.reactions_count || 0}</span>
             </Button>
             {showReactions && (
               <div
@@ -219,6 +282,12 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
           onOpenChange={setLightboxOpen}
         />
       )}
+
+      <ReactionsDialog
+        open={reactionsDialogOpen}
+        onOpenChange={setReactionsDialogOpen}
+        reactions={postReactions}
+      />
     </div>
   );
 };

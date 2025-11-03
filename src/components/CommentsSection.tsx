@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
+import { Link } from "react-router-dom";
 
 interface Comment {
   id: string;
@@ -229,17 +230,21 @@ export const CommentsSection = ({ postId }: CommentsSectionProps) => {
         ) : comments.length > 0 ? (
           comments.map((comment) => (
             <div key={comment.id} className="flex gap-3">
-              <Avatar className="h-9 w-9 flex-shrink-0">
-                <AvatarImage src={comment.profiles.avatar_url} />
-                <AvatarFallback className="bg-muted text-foreground text-sm">
-                  {comment.profiles.username.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <Link to={`/profile/${comment.profiles.username}`} className="flex-shrink-0">
+                <Avatar className="h-9 w-9 hover:ring-2 hover:ring-primary transition-all cursor-pointer">
+                  <AvatarImage src={comment.profiles.avatar_url} />
+                  <AvatarFallback className="bg-muted text-foreground text-sm">
+                    {comment.profiles.username.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </Link>
               <div className="flex-1 min-w-0">
                 <div className="bg-muted/50 rounded-2xl px-4 py-2.5">
-                  <p className="font-semibold text-sm text-foreground mb-1">
-                    {comment.profiles.username}
-                  </p>
+                  <Link to={`/profile/${comment.profiles.username}`}>
+                    <p className="font-semibold text-sm text-foreground mb-1 hover:underline cursor-pointer inline-block">
+                      {comment.profiles.username}
+                    </p>
+                  </Link>
                   <p className="text-sm text-foreground/90 leading-relaxed break-words">
                     {comment.content}
                   </p>

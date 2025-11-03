@@ -7,9 +7,10 @@ import { usePosts } from "@/hooks/usePosts";
 
 interface CreateTextPostFormProps {
   onClose: () => void;
+  onPostCreated?: () => void;
 }
 
-const CreateTextPostForm = ({ onClose }: CreateTextPostFormProps) => {
+const CreateTextPostForm = ({ onClose, onPostCreated }: CreateTextPostFormProps) => {
   const [content, setContent] = useState("");
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
@@ -42,6 +43,9 @@ const CreateTextPostForm = ({ onClose }: CreateTextPostFormProps) => {
 
     if (!error) {
       onClose();
+      if (onPostCreated) {
+        setTimeout(() => onPostCreated(), 100);
+      }
     }
   };
 

@@ -148,45 +148,64 @@ export const useFeed = (filterType: string = "all", limit: number = 20) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: existing } = await supabase
+      const post = posts.find(p => p.id === postId);
+      if (!post) return;
+
+      const { data: existingSameType } = await supabase
         .from("reactions")
-        .select("id")
+        .select("id, reaction_type")
         .eq("post_id", postId)
         .eq("user_id", user.id)
         .eq("reaction_type", reactionType)
         .maybeSingle();
 
-      if (existing) {
+      if (existingSameType) {
         await supabase
           .from("reactions")
           .delete()
-          .eq("id", existing.id);
+          .eq("id", existingSameType.id);
 
         setPosts(prev =>
-          prev.map(post =>
-            post.id === postId
-              ? { ...post, reactions_count: (post.reactions_count || 1) - 1, user_reaction: undefined }
-              : post
+          prev.map(p =>
+            p.id === postId
+              ? { ...p, reactions_count: Math.max(0, (p.reactions_count || 1) - 1), user_reaction: undefined }
+              : p
           )
         );
       } else {
-        await supabase
+        const { data: existingDifferentType } = await supabase
           .from("reactions")
-          .delete()
+          .select("id, reaction_type")
           .eq("post_id", postId)
-          .eq("user_id", user.id);
+          .eq("user_id", user.id)
+          .maybeSingle();
 
-        await supabase
-          .from("reactions")
-          .insert({ post_id: postId, user_id: user.id, reaction_type: reactionType });
+        if (existingDifferentType) {
+          await supabase
+            .from("reactions")
+            .update({ reaction_type: reactionType })
+            .eq("id", existingDifferentType.id);
 
-        setPosts(prev =>
-          prev.map(post =>
-            post.id === postId
-              ? { ...post, reactions_count: (post.reactions_count || 0) + 1, user_reaction: reactionType }
-              : post
-          )
-        );
+          setPosts(prev =>
+            prev.map(p =>
+              p.id === postId
+                ? { ...p, user_reaction: reactionType }
+                : p
+            )
+          );
+        } else {
+          await supabase
+            .from("reactions")
+            .insert({ post_id: postId, user_id: user.id, reaction_type: reactionType });
+
+          setPosts(prev =>
+            prev.map(p =>
+              p.id === postId
+                ? { ...p, reactions_count: (p.reactions_count || 0) + 1, user_reaction: reactionType }
+                : p
+            )
+          );
+        }
       }
     } catch (error: any) {
       console.error("Error adding reaction:", error);
