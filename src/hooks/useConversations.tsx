@@ -27,6 +27,10 @@ export interface Conversation {
   updated_at: string;
   last_message_at: string;
   last_message_preview: string;
+  is_group_chat?: boolean;
+  group_name?: string;
+  group_avatar?: string;
+  member_count?: number;
   participants?: Array<{
     id: string;
     user_id: string;

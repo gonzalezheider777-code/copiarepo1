@@ -27,6 +27,7 @@ const Messages = () => {
 
   const selectedConversation = conversations.find(c => c.id === selectedConversationId);
   const otherParticipant = selectedConversation?.participants?.find(p => p.user_id !== user?.id);
+  const isGroupChat = selectedConversation?.is_group_chat;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -124,6 +125,12 @@ const Messages = () => {
               <div className="space-y-2">
                 {conversations.map((conv) => {
                   const otherUser = conv.participants?.find(p => p.user_id !== user?.id);
+                  const displayName = conv.is_group_chat ? conv.group_name : otherUser?.user?.full_name;
+                  const displayAvatar = conv.is_group_chat ? conv.group_avatar : otherUser?.user?.avatar_url;
+                  const displaySubtext = conv.is_group_chat
+                    ? `${conv.member_count} miembros • ${conv.participants?.length || 0} en línea`
+                    : `@${otherUser?.user?.username || ''}`;
+
                   return (
                     <Card
                       key={conv.id}
@@ -131,22 +138,30 @@ const Messages = () => {
                       onClick={() => setSelectedConversationId(conv.id)}
                     >
                       <div className="flex gap-3">
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage src={otherUser?.user?.avatar_url} />
-                          <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white">
-                            {otherUser?.user?.full_name?.[0] || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
+                        <div className="relative">
+                          <Avatar className={`${conv.is_group_chat ? 'h-14 w-14' : 'h-12 w-12'}`}>
+                            <AvatarImage src={displayAvatar} />
+                            <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white">
+                              {displayName?.[0] || 'U'}
+                            </AvatarFallback>
+                          </Avatar>
+                          {conv.is_group_chat && (
+                            <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border-2 border-background">
+                              {conv.member_count}
+                            </div>
+                          )}
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="font-semibold truncate">{otherUser?.user?.full_name}</p>
+                            <p className="font-semibold truncate">{displayName}</p>
                             <span className="text-xs text-muted-foreground">
                               {format(new Date(conv.last_message_at), 'HH:mm')}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-muted-foreground">{displaySubtext}</p>
+                          <div className="flex items-center justify-between gap-2 mt-1">
                             <p className="text-sm text-muted-foreground truncate">
-                              {conv.last_message_preview}
+                              {conv.last_message_preview || 'Sin mensajes aún'}
                             </p>
                             {conv.unread_count! > 0 && (
                               <Badge className="bg-primary text-white">
@@ -187,14 +202,20 @@ const Messages = () => {
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={otherParticipant?.user?.avatar_url} />
+                  <AvatarImage src={isGroupChat ? selectedConversation?.group_avatar : otherParticipant?.user?.avatar_url} />
                   <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white">
-                    {otherParticipant?.user?.full_name?.[0] || 'U'}
+                    {isGroupChat ? selectedConversation?.group_name?.[0] : otherParticipant?.user?.full_name?.[0] || 'U'}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <h2 className="font-bold text-foreground">{otherParticipant?.user?.full_name}</h2>
-                  <p className="text-xs text-muted-foreground">@{otherParticipant?.user?.username}</p>
+                  <h2 className="font-bold text-foreground">
+                    {isGroupChat ? selectedConversation?.group_name : otherParticipant?.user?.full_name}
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    {isGroupChat
+                      ? `${selectedConversation?.member_count} miembros`
+                      : `@${otherParticipant?.user?.username}`}
+                  </p>
                 </div>
                 <Button variant="ghost" size="icon" className="h-10 w-10">
                   <MoreVertical className="h-5 w-5" />
@@ -235,10 +256,15 @@ const Messages = () => {
                       )}
 
                       <div className={`flex-1 max-w-[70%] ${isCurrentUser ? 'flex flex-col items-end' : ''}`}>
+                        {isGroupChat && !isCurrentUser && (
+                          <p className="text-xs font-semibold text-foreground mb-1 px-1">
+                            {message.sender?.full_name || message.sender?.username}
+                          </p>
+                        )}
                         <div
                           className={`rounded-2xl px-4 py-2.5 ${
                             isCurrentUser
-                              ? 'bg-primary text-primary-foreground rounded-br-sm'
+                              ? 'bg-gradient-to-r from-cyan-500 to-emerald-500 text-white rounded-br-sm shadow-md'
                               : 'bg-card border border-border rounded-bl-sm'
                           }`}
                         >
@@ -246,10 +272,11 @@ const Messages = () => {
                             <img
                               src={message.image_url}
                               alt="Message attachment"
-                              className="rounded-lg max-w-full mb-2"
+                              className="rounded-lg max-w-full mb-2 cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => window.open(message.image_url, '_blank')}
                             />
                           )}
-                          <p className="text-sm leading-relaxed">{message.content}</p>
+                          <p className="text-sm leading-relaxed break-words">{message.content}</p>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1 px-1">
                           {format(new Date(message.created_at), 'HH:mm')}
