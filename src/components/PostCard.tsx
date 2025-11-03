@@ -28,7 +28,31 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
   const [reactionsDialogOpen, setReactionsDialogOpen] = useState(false);
   const [postReactions, setPostReactions] = useState<any[]>([]);
   const [loadingReactions, setLoadingReactions] = useState(false);
+  const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!videoRef) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting && videoRef) {
+            videoRef.pause();
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    observer.observe(videoRef);
+
+    return () => {
+      if (videoRef) {
+        observer.unobserve(videoRef);
+      }
+    };
+  }, [videoRef]);
 
   const reactions = [
     { icon: ThumbsUp, label: "like", color: "text-blue-600" },
@@ -171,11 +195,17 @@ export const PostCard = ({ post, onReaction, onSave, onDelete }: PostCardProps) 
           {post.media_url && post.media_type === "video" && (
             <div className="rounded overflow-hidden border border-border">
               <video
+                ref={setVideoRef}
                 src={post.media_url}
                 controls
                 className="w-full h-auto max-h-96 bg-black"
                 preload="metadata"
+                poster={post.media_url.replace(/\.(mp4|webm|ogg)$/, '-thumb.jpg')}
+                playsInline
+                controlsList="nodownload"
               >
+                <source src={post.media_url} type="video/mp4" />
+                <source src={post.media_url.replace('.mp4', '.webm')} type="video/webm" />
                 Tu navegador no soporta el elemento de video.
               </video>
             </div>
